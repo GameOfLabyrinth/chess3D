@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu d'échecs 3D</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Changed to flex-start to allow content to naturally flow down */
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f0f4f8, #c8d8e8);
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #333;
+            /* Removed overflow: hidden; from body to allow scrolling */
+        }
+
+        .game-container {
+            background-color: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            max-width: 95%; /* Adjust for 3D view */
+            width: 800px; /* Max width for larger screens */
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        /* Styles for the 3D container which holds the Three.js canvas */
+        #threeDContainer {
+            width: 100%;
+            max-width: 600px; /* Max width for a square board */
+            aspect-ratio: 1 / 1; /* Keep it square */
+            display: flex;
+            justify-content: center;
+            align-items: center; /* Center the canvas inside */
+            border: 5px solid #34495e;
+            border-radius: 10px;
+            box-sizing: border-box;
+            overflow: hidden; /* Hide any overflow within the 3D container */
+        }
+
+        /* Styles for the Three.js canvas itself (will be appended inside #threeDContainer) */
+        #threeDContainer canvas {
+            display: block;
+            touch-action: none; /* Prevent browser default touch actions */
+            width: 100%; /* Fill container */
+            height: 100%; /* Fill container */
+        }
+
+        .status-message {
+            margin-top: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2980b9;
+            text-align: center;
+            min-height: 1.5em; /* Reserve space for message */
+        }
+
+        .button-container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #2980b9, #3498db);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+            z-index: 0;
+        }
+
+        button:hover::before {
+            width: 200%;
+            height: 200%;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 15px;
+                width: 100%;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            #threeDContainer {
+                height: 400px; /* Smaller height for mobile */
+                max-width: 400px;
+                max-height: 400px;
+            }
+            .status-message {
+                font-size: 1em;
+            }
+            button {
+                padding: 10px 18px;
+                font-size: 0.95em;
+            }
+        }
+
+        /* Modal for messages */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border: 1px solid #888;
+            border-radius: 15px;
+            width: 80%; /* Could be more responsive */
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.8em;
+        }
+
+        .modal-content p {
+            font-size: 1.1em;
+            line-height: 1.5;
+            color: #555;
+        }
+
+        .modal-content button {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-content button:hover {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Jeu d'échecs 3D</h1>
+        <!-- The container where the Three.js canvas will be injected -->
+        <div id="threeDContainer">
+        </div>
+        <div class="status-message" id="statusMessage">Tour des Blancs</div>
+        <div class="button-container">
+            <button id="resetButton">Réinitialiser le jeu</button>
+            <button id="undoButton">Annuler le coup</button>
+        </div>
+    </div>
+
+    <!-- Custom Modal for messages -->
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle"></h2>
+            <p id="modalMessage"></p>
+            <button id="modalCloseButton">OK</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+    <script>
+        // Get the status message display element
+        const statusMessage = document.getElementById('statusMessage');
+        // Get the reset button element
+        const resetButton = document.getElementById('resetButton');
+        // Get the undo button element
+        const undoButton = document.getElementById('undoButton');
+        // Get modal elements
+        const messageModal = document.getElementById('messageModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalCloseButton = document.getElementById('modalCloseButton');
+        const threeDContainer = document.getElementById('threeDContainer');
+
+        // Three.js variables
+        let scene, camera, renderer, controls;
+        let raycaster, mouse;
+
+        // Chess board dimensions
+        const boardSize = 8;
+        const squareSize3D = 10; // Size of each square in 3D units
+        const pieceHeight = 7; // Approximate height of a piece
+        const pieceBaseRadius = 3; // Base radius for pieces
+
+        // Chess board colors (materials) - now declared with `let` and assigned in initThreeD
+        let lightSquareMaterial;
+        let darkSquareMaterial;
+        let highlightMaterial;
+        let possibleMoveMaterial;
+        let captureMoveMaterial;
+        let checkMaterial;
+
+        // Piece materials - also declared with `let` and assigned in initThreeD
+        let whitePieceMaterial;
+        let blackPieceMaterial;
+
+        // Array to store 3D mesh objects for squares and pieces
+        let boardSquares = []; // Stores the 3D mesh objects for the squares
+        let pieceMeshes = new Map(); // Map piece identifiers (e.g., "0_0") to their 3D meshes
+
+        // Game logic variables (same as 2D version)
+        let board = []; // 2D array representing the board state
+        let selectedPiece = null; // Tracks the currently selected piece's coordinates
+        let validMoves = []; // Stores all valid moves for the selected piece
+        let currentPlayer = 'w'; // Tracks whose turn it is ('w' for white, 'b' for black)
+        let gameOver = false; // Game over flag
+        let moveHistory = []; // History of moves for undo functionality
+
+        /**
+         * Shows a custom modal message to the user.
+         * @param {string} title - The title of the modal.
+         * @param {string} message - The message content.
+         */
+        function showMessage(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            messageModal.style.display = 'flex'; // Use flex to center content
+        }
+
+        /**
+         * Hides the custom modal.
+         */
+        function hideMessage() {
+            modalMessage.style.display = 'none';
+        }
+
+        // Event listener for closing the modal (placed outside the function now)
+        modalCloseButton.addEventListener('click', hideMessage);
+
+        /**
+         * Initializes the Three.js scene, camera, renderer, and controls.
+         */
+        function initThreeD() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f4f8); // Light background for the scene
+
+            camera = new THREE.PerspectiveCamera(75, threeDContainer.clientWidth / threeDContainer.clientHeight, 0.1, 1000);
+            camera.position.set(squareSize3D * 4, squareSize3D * 8, squareSize3D * 8); // Adjusted camera position
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            // Set renderer size based on the container's computed dimensions
+            renderer.setSize(threeDContainer.clientWidth, threeDContainer.clientHeight);
+            threeDContainer.appendChild(renderer.domElement);
+            renderer.domElement.id = 'threeDCanvas'; // Set an ID for the canvas
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // An animation loop is required when damping is enabled
+            controls.dampingFactor = 0.25;
+            controls.screenSpacePanning = false;
+            controls.maxPolarAngle = Math.PI / 2; // Prevent camera from going below the board
+
+            // Initialize materials here after Three.js is loaded
+            lightSquareMaterial = new THREE.MeshPhongMaterial({ color: 0xf0d9b5 });
+            darkSquareMaterial = new THREE.MeshPhongMaterial({ color: 0xb58863 });
+            highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x6496ff, transparent: true, opacity: 0.6 });
+            possibleMoveMaterial = new THREE.MeshBasicMaterial({ color: 0x32c832, transparent: true, opacity: 0.4 });
+            captureMoveMaterial = new THREE.MeshBasicMaterial({ color: 0xff3232, transparent: true, opacity: 0.4 });
+            checkMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+            whitePieceMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
+            blackPieceMaterial = new THREE.MeshPhongMaterial({ color: 0x202020 });
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(squareSize3D * 4, squareSize3D * 10, squareSize3D * 5);
+            scene.add(directionalLight);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            renderer.domElement.addEventListener('mousemove', onDocumentMouseMove, false);
+            renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        /**
+         * Creates a 3D mesh for a chess square.
+         * @param {number} row - The row of the square.
+         * @param {number} col - The column of the square.
+         * @param {THREE.Material} material - The material for the square.
+         * @returns {THREE.Mesh} The 3D square mesh.
+         */
+        function createSquareMesh(row, col, material) {
+            const geometry = new THREE.PlaneGeometry(squareSize3D, squareSize3D);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2; // Rotate to lie flat on the XY plane
+            mesh.position.set(
+                col * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2,
+                0,
+                row * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2
+            );
+            mesh.userData = { row: row, col: col, type: 'square' }; // Store data for raycasting
+            return mesh;
+        }
+
+        /**
+         * Creates a 3D mesh for a chess piece.
+         * @param {string} pieceType - The type of piece (e.g., 'wP', 'bK').
+         * @returns {THREE.Mesh} The 3D piece mesh.
+         */
+        function createPieceMesh(pieceType) {
+            let geometriesToMerge = [];
+            let currentOffset = 0; // Tracks vertical offset for stacking components
+            const material = getPieceColor(pieceType) === 'w' ? whitePieceMaterial : blackPieceMaterial;
+
+            // Base for all pieces
+            const baseHeight = pieceHeight * 0.1;
+            const baseGeometry = new THREE.CylinderGeometry(pieceBaseRadius * 0.9, pieceBaseRadius * 1.1, baseHeight, 16);
+            baseGeometry.translate(0, currentOffset + baseHeight / 2, 0);
+            geometriesToMerge.push(new THREE.BufferGeometry().copy(baseGeometry));
+            currentOffset += baseHeight;
+
+            const pieceTypeLetter = pieceType[1];
+            switch (pieceTypeLetter) {
+                case 'P': // Pawn
+                    const pawnBodyHeight = pieceHeight * 0.5;
+                    const pawnBody = new THREE.CylinderGeometry(pieceBaseRadius * 0.6, pieceBaseRadius * 0.9, pawnBodyHeight, 16);
+                    pawnBody.translate(0, currentOffset + pawnBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(pawnBody));
+                    currentOffset += pawnBodyHeight;
+
+                    const pawnHead = new THREE.SphereGeometry(pieceBaseRadius * 0.6, 16, 16);
+                    pawnHead.translate(0, currentOffset + pieceBaseRadius * 0.6, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(pawnHead));
+                    break;
+
+                case 'R': // Rook
+                    const rookBodyHeight = pieceHeight * 0.7;
+                    const rookBody = new THREE.BoxGeometry(pieceBaseRadius * 1.2, rookBodyHeight, pieceBaseRadius * 1.2);
+                    rookBody.translate(0, currentOffset + rookBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(rookBody));
+                    currentOffset += rookBodyHeight;
+
+                    const rookTopHeight = pieceHeight * 0.1;
+                    const rookTop = new THREE.BoxGeometry(pieceBaseRadius * 1.3, rookTopHeight, pieceBaseRadius * 1.3);
+                    rookTop.translate(0, currentOffset + rookTopHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(rookTop));
+                    currentOffset += rookTopHeight;
+
+                    // Battlements
+                    const battlementHeight = pieceHeight * 0.15;
+                    const battlementWidth = pieceBaseRadius * 0.3;
+                    const battlementDepth = pieceBaseRadius * 0.3;
+                    const numBattlements = 4;
+                    for (let i = 0; i < numBattlements; i++) {
+                        const battlement = new THREE.BoxGeometry(battlementWidth, battlementHeight, battlementDepth);
+                        const angle = (i / numBattlements) * Math.PI * 2;
+                        const radius = pieceBaseRadius * 1.1;
+                        battlement.translate(
+                            radius * Math.cos(angle),
+                            currentOffset + battlementHeight / 2,
+                            radius * Math.sin(angle)
+                        );
+                        geometriesToMerge.push(new THREE.BufferGeometry().copy(battlement));
+                    }
+                    break;
+
+                case 'N': // Knight (simplified abstract horse head)
+                    const knightBodyHeight = pieceHeight * 0.4;
+                    const knightBody = new THREE.CylinderGeometry(pieceBaseRadius * 0.7, pieceBaseRadius * 0.9, knightBodyHeight, 16);
+                    knightBody.translate(0, currentOffset + knightBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(knightBody));
+                    currentOffset += knightBodyHeight;
+
+                    // Slanted neck
+                    const neckHeight = pieceHeight * 0.6;
+                    const neckWidth = pieceBaseRadius * 0.8;
+                    const neckDepth = pieceBaseRadius * 0.6;
+                    const neck = new THREE.BoxGeometry(neckWidth, neckHeight, neckDepth);
+                    neck.rotateX(Math.PI / 8); // Slant it
+                    neck.translate(0, currentOffset + neckHeight / 2 - pieceHeight * 0.05, 0); // Position and slightly lower
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(neck));
+                    break;
+
+                case 'B': // Bishop
+                    const bishopBodyHeight = pieceHeight * 0.8;
+                    const bishopBody = new THREE.CylinderGeometry(pieceBaseRadius * 0.7, pieceBaseRadius * 0.9, bishopBodyHeight, 16);
+                    bishopBody.translate(0, currentOffset + bishopBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(bishopBody));
+                    currentOffset += bishopBodyHeight;
+
+                    // Cut at top (simulated with a slice)
+                    const topSphereRadius = pieceBaseRadius * 0.6;
+                    const topSphere = new THREE.SphereGeometry(topSphereRadius, 16, 16);
+                    topSphere.translate(0, currentOffset + topSphereRadius * 0.7, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(topSphere));
+
+                    // Add a "cut" in the sphere for bishop
+                    const cutBox = new THREE.BoxGeometry(topSphereRadius * 0.5, topSphereRadius * 2, topSphereRadius * 2);
+                    cutBox.rotateZ(Math.PI / 4); // Diagonal cut
+                    cutBox.translate(0, currentOffset + topSphereRadius * 0.7, 0);
+                    // This is a visual trick, not a real subtraction. A CSG library would be needed for true cuts.
+                    // For now, we'll just draw the sphere as is.
+                    break;
+
+                case 'Q': // Queen
+                    const queenBodyHeight = pieceHeight * 1;
+                    const queenBody = new THREE.CylinderGeometry(pieceBaseRadius * 0.9, pieceBaseRadius * 1, queenBodyHeight, 32);
+                    queenBody.translate(0, currentOffset + queenBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(queenBody));
+                    currentOffset += queenBodyHeight;
+
+                    const queenMidHeight = pieceHeight * 0.4;
+                    const queenMid = new THREE.CylinderGeometry(pieceBaseRadius * 0.7, pieceBaseRadius * 0.9, queenMidHeight, 32);
+                    queenMid.translate(0, currentOffset + queenMidHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(queenMid));
+                    currentOffset += queenMidHeight;
+
+                    const crownRingRadius = pieceBaseRadius * 0.6;
+                    const crownRingTube = pieceBaseRadius * 0.1;
+                    const crownRing = new THREE.TorusGeometry(crownRingRadius, crownRingTube, 16, 32);
+                    crownRing.rotateX(Math.PI / 2); // Orient horizontally
+                    crownRing.translate(0, currentOffset + crownRingTube / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(crownRing));
+                    currentOffset += crownRingTube;
+
+                    // Crown points (simple spheres)
+                    const crownPointRadius = pieceBaseRadius * 0.2;
+                    const numPoints = 8;
+                    for (let i = 0; i < numPoints; i++) {
+                        const point = new THREE.SphereGeometry(crownPointRadius, 8, 8);
+                        const angle = (i / numPoints) * Math.PI * 2;
+                        const radius = crownRingRadius * 0.9;
+                        point.translate(
+                            radius * Math.cos(angle),
+                            currentOffset + crownPointRadius,
+                            radius * Math.sin(angle)
+                        );
+                        geometriesToMerge.push(new THREE.BufferGeometry().copy(point));
+                    }
+                    break;
+
+                case 'K': // King
+                    const kingBodyHeight = pieceHeight * 1.1;
+                    const kingBody = new THREE.CylinderGeometry(pieceBaseRadius * 0.9, pieceBaseRadius * 1.1, kingBodyHeight, 32);
+                    kingBody.translate(0, currentOffset + kingBodyHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(kingBody));
+                    currentOffset += kingBodyHeight;
+
+                    const kingMidHeight = pieceHeight * 0.3;
+                    const kingMid = new THREE.CylinderGeometry(pieceBaseRadius * 0.7, pieceBaseRadius * 0.9, kingMidHeight, 32);
+                    kingMid.translate(0, currentOffset + kingMidHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(kingMid));
+                    currentOffset += kingMidHeight;
+
+                    // Cross on top
+                    const crossBarHeight = pieceBaseRadius * 1.2;
+                    const crossBarWidth = pieceBaseRadius * 0.2;
+                    const crossBarDepth = pieceBaseRadius * 0.2;
+
+                    const crossH = new THREE.BoxGeometry(crossBarHeight, crossBarWidth, crossBarDepth);
+                    crossH.translate(0, currentOffset + crossBarHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(crossH));
+
+                    const crossV = new THREE.BoxGeometry(crossBarWidth, crossBarHeight, crossBarDepth);
+                    crossV.rotateZ(Math.PI / 2); // Rotate to form a cross
+                    crossV.translate(0, currentOffset + crossBarHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(crossV));
+                    break;
+
+                default: // Fallback
+                    geometry = new THREE.BoxGeometry(pieceBaseRadius, pieceHeight, pieceBaseRadius);
+                    geometry.translate(0, pieceHeight / 2, 0);
+                    geometriesToMerge.push(new THREE.BufferGeometry().copy(geometry));
+            }
+
+            // Merge all geometries into one for performance
+            const mergedGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometriesToMerge);
+            const mesh = new THREE.Mesh(mergedGeometry, material);
+            mesh.userData = { type: 'piece', pieceType: pieceType }; // Store piece type
+            return mesh;
+        }
+
+
+        /**
+         * Initializes the chess board with standard starting positions (2D array).
+         * Also creates 3D meshes for the board squares and pieces.
+         */
+        function initializeBoard() {
+            board = [
+                ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
+                ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
+                ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
+            ];
+            selectedPiece = null;
+            validMoves = [];
+            currentPlayer = 'w';
+            gameOver = false;
+            moveHistory = [];
+            statusMessage.textContent = 'Tour des Blancs';
+
+            // Clear existing 3D objects
+            scene.children.forEach(child => {
+                // Keep lights and other static scene objects, remove only board and pieces
+                if (child.userData.type === 'square' || child.userData.type === 'piece') {
+                    scene.remove(child);
+                }
+            });
+            boardSquares = [];
+            pieceMeshes.clear();
+
+            // Create 3D board squares
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const material = (row + col) % 2 === 0 ? lightSquareMaterial : darkSquareMaterial;
+                    const squareMesh = createSquareMesh(row, col, material);
+                    scene.add(squareMesh);
+                    boardSquares.push(squareMesh);
+                }
+            }
+
+            // Place 3D pieces based on initial 2D board state
+            update3DBoardFrom2D();
+        }
+
+        /**
+         * Updates the 3D piece meshes based on the current 2D board array.
+         * This involves adding new pieces, removing captured pieces, and moving existing ones.
+         */
+        function update3DBoardFrom2D() {
+            // Remove all current 3D piece meshes from the scene and map
+            pieceMeshes.forEach(mesh => scene.remove(mesh));
+            pieceMeshes.clear();
+
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const piece = board[row][col];
+                    if (piece) {
+                        const pieceMesh = createPieceMesh(piece);
+                        // Position the piece centered on its square
+                        pieceMesh.position.set(
+                            col * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2,
+                            pieceHeight / 2, // Half piece height to sit on the board (adjust if piece origin is different)
+                            row * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2
+                        );
+                        scene.add(pieceMesh);
+                        // Store the piece mesh with its board coordinates as key
+                        pieceMeshes.set(`${row}_${col}`, pieceMesh);
+                    }
+                }
+            }
+            drawBoardState(); // Call to highlight squares
+        }
+
+        /**
+         * Highlights squares based on selected piece, valid moves, and king in check.
+         * In a 3D context, this means changing the material/color of the square meshes.
+         */
+        function drawBoardState() {
+            // Reset all squares to their original colors
+            boardSquares.forEach(squareMesh => {
+                const { row, col } = squareMesh.userData;
+                squareMesh.material = (row + col) % 2 === 0 ? lightSquareMaterial : darkSquareMaterial;
+            });
+
+            // Highlight selected piece square
+            if (selectedPiece) {
+                const selectedSquareMesh = boardSquares.find(m => m.userData.row === selectedPiece.row && m.userData.col === selectedPiece.col);
+                if (selectedSquareMesh) {
+                    selectedSquareMesh.material = highlightMaterial;
+                }
+            }
+
+            // Highlight valid move squares
+            validMoves.forEach(move => {
+                const targetSquareMesh = boardSquares.find(m => m.userData.row === move.row && m.userData.col === move.col);
+                if (targetSquareMesh) {
+                    const targetPiece = board[move.row][move.col];
+                    targetSquareMesh.material = targetPiece ? captureMoveMaterial : possibleMoveMaterial;
+                }
+            });
+
+            // Highlight king in check
+            const kingPos = findKing(currentPlayer, board);
+            if (kingPos && isKingInCheck(currentPlayer, board)) {
+                const kingSquareMesh = boardSquares.find(m => m.userData.row === kingPos.row && m.userData.col === kingPos.col);
+                if (kingSquareMesh) {
+                    kingSquareMesh.material = checkMaterial;
+                }
+            }
+        }
+
+        /**
+         * Gets the color of a piece.
+         * @param {string} piece - The piece string (e.g., 'wP', 'bR').
+         * @returns {string} 'w' for white, 'b' for black, or null if no piece.
+         */
+        function getPieceColor(piece) {
+            if (!piece) return null;
+            return piece[0];
+        }
+
+        /**
+         * Checks if a move is within the board boundaries.
+         * @param {number} row - The target row.
+         * @param {number} col - The target column.
+         * @returns {boolean} True if the move is within bounds, false otherwise.
+         */
+        function isValidPosition(row, col) {
+            return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
+        }
+
+        /**
+         * Calculates valid moves for a pawn.
+         * @param {number} row - Current row of the pawn.
+         * @param {number} col - Current column of the pawn.
+         * @param {string} color - Color of the pawn ('w' or 'b').
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getPawnMoves(row, col, color, currentBoard) {
+            const moves = [];
+            const direction = (color === 'w') ? -1 : 1; // White moves up, black moves down
+            const startRow = (color === 'w') ? 6 : 1; // White pawns start on row 6, black on row 1
+
+            // Forward move
+            if (isValidPosition(row + direction, col) && !currentBoard[row + direction][col]) {
+                moves.push({ row: row + direction, col: col });
+                // Double move from starting position
+                if (row === startRow && isValidPosition(row + 2 * direction, col) && !currentBoard[row + 2 * direction][col]) {
+                    moves.push({ row: row + 2 * direction, col: col });
+                }
+            }
+
+            // Captures (diagonal)
+            // Left diagonal
+            if (isValidPosition(row + direction, col - 1) &&
+                currentBoard[row + direction][col - 1] &&
+                getPieceColor(currentBoard[row + direction][col - 1]) !== color) {
+                moves.push({ row: row + direction, col: col - 1 });
+            }
+            // Right diagonal
+            if (isValidPosition(row + direction, col + 1) &&
+                currentBoard[row + direction][col + 1] &&
+                getPieceColor(currentBoard[row + direction][col + 1]) !== color) {
+                moves.push({ row: row + direction, col: col + 1 });
+            }
+
+            // TODO: En Passant and Promotion not implemented yet for simplicity
+            return moves;
+        }
+
+        /**
+         * Calculates valid moves for a rook.
+         * @param {number} row - Current row of the rook.
+         * @param {number} col - Current column of the rook.
+         * @param {string} color - Color of the rook.
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getRookMoves(row, col, color, currentBoard) {
+            const moves = [];
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]; // Up, Down, Left, Right
+
+            for (const [dr, dc] of directions) {
+                let r = row + dr;
+                let c = col + dc;
+                while (isValidPosition(r, c)) {
+                    const targetPiece = currentBoard[r][c];
+                    if (!targetPiece) {
+                        moves.push({ row: r, col: c });
+                    } else {
+                        if (getPieceColor(targetPiece) !== color) {
+                            moves.push({ row: r, col: c }); // Capture
+                        }
+                        break; // Blocked by own piece or captured opponent's piece
+                    }
+                    r += dr;
+                    c += dc;
+                }
+            }
+            return moves;
+        }
+
+        /**
+         * Calculates valid moves for a knight.
+         * @param {number} row - Current row of the knight.
+         * @param {number} col - Current column of the knight.
+         * @param {string} color - Color of the knight.
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getKnightMoves(row, col, color, currentBoard) {
+            const moves = [];
+            // Knight's L-shaped moves
+            const possibleOffsets = [
+                [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                [1, -2], [1, 2], [2, -1], [2, 1]
+            ];
+
+            for (const [dr, dc] of possibleOffsets) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+                if (isValidPosition(newRow, newCol)) {
+                    const targetPiece = currentBoard[newRow][newCol];
+                    if (!targetPiece || getPieceColor(targetPiece) !== color) {
+                        moves.push({ row: newRow, col: newCol });
+                    }
+                }
+            }
+            return moves;
+        }
+
+        /**
+         * Calculates valid moves for a bishop.
+         * @param {number} row - Current row of the bishop.
+         * @param {number} col - Current column of the bishop.
+         * @param {string} color - Color of the bishop.
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getBishopMoves(row, col, color, currentBoard) {
+            const moves = [];
+            const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]]; // Diagonals
+
+            for (const [dr, dc] of directions) {
+                let r = row + dr;
+                let c = col + dc;
+                while (isValidPosition(r, c)) {
+                    const targetPiece = currentBoard[r][c];
+                    if (!targetPiece) {
+                        moves.push({ row: r, col: c });
+                    } else {
+                        if (getPieceColor(targetPiece) !== color) {
+                            moves.push({ row: r, col: c }); // Capture
+                        }
+                        break; // Blocked
+                    }
+                    r += dr;
+                    c += dc;
+                }
+            }
+            return moves;
+        }
+
+        /**
+         * Calculates valid moves for a queen. (Combination of rook and bishop)
+         * @param {number} row - Current row of the queen.
+         * @param {number} col - Current column of the queen.
+         * @param {string} color - Color of the queen.
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getQueenMoves(row, col, color, currentBoard) {
+            // Queen moves are a combination of Rook moves and Bishop moves
+            return getRookMoves(row, col, color, currentBoard).concat(getBishopMoves(row, col, color, currentBoard));
+        }
+
+        /**
+         * Calculates valid moves for a king.
+         * @param {number} row - Current row of the king.
+         * @param {number} col - Current column of the king.
+         * @param {string} color - Color of the king.
+         * @param {Array<Array<string|null>>} currentBoard - The current state of the board.
+         * @returns {Array<{row: number, col: number}>} List of valid moves.
+         */
+        function getKingMoves(row, col, color, currentBoard) {
+            const moves = [];
+            // All 8 surrounding squares
+            const possibleOffsets = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1], [1, 0], [1, 1]
+            ];
+
+            for (const [dr, dc] of possibleOffsets) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+                if (isValidPosition(newRow, newCol)) {
+                    const targetPiece = currentBoard[newRow][newCol];
+                    if (!targetPiece || getPieceColor(targetPiece) !== color) {
+                        // TODO: Also need to check if the move puts the king in check
+                        moves.push({ row: newRow, col: newCol });
+                    }
+                }
+            }
+            // TODO: Castling not implemented for simplicity
+            return moves;
+        }
+
+        /**
+         * Determines all valid moves for a given piece at (row, col).
+         * @param {number} row - The row of the piece.
+         * @param {number} col - The column of the piece.
+         * @param {Array<Array<string|null>>} currentBoard - The board state to analyze.
+         * @returns {Array<{row: number, col: number}>} An array of valid move coordinates.
+         */
+        function getValidMoves(row, col, currentBoard) {
+            const piece = currentBoard[row][col];
+            if (!piece) return [];
+
+            const color = getPieceColor(piece);
+            const type = piece[1]; // P, R, N, B, Q, K
+
+            let moves = [];
+            switch (type) {
+                case 'P': moves = getPawnMoves(row, col, color, currentBoard); break;
+                case 'R': moves = getRookMoves(row, col, color, currentBoard); break;
+                case 'N': moves = getKnightMoves(row, col, color, currentBoard); break;
+                case 'B': moves = getBishopMoves(row, col, color, currentBoard); break;
+                case 'Q': moves = getQueenMoves(row, col, color, currentBoard); break;
+                case 'K': moves = getKingMoves(row, col, color, currentBoard); break;
+            }
+
+            // Filter out moves that would put your own king in check
+            // This is a crucial step for real chess rules but computationally intensive.
+            // For simplicity in this basic version, this is *not* fully implemented.
+            // A full implementation would involve:
+            // 1. For each potential move, create a hypothetical board state.
+            // 2. Check if the current player's king is under attack in that hypothetical state.
+            // 3. If it is, filter out that move.
+            return moves.filter(move => {
+                const tempBoard = JSON.parse(JSON.stringify(currentBoard)); // Deep copy
+                // Make the hypothetical move
+                tempBoard[move.row][move.col] = tempBoard[row][col];
+                tempBoard[row][col] = null;
+                return !isKingInCheck(color, tempBoard);
+            });
+        }
+
+        /**
+         * Finds the king's position for a given color.
+         * @param {string} color - The color of the king ('w' or 'b').
+         * @param {Array<Array<string|null>>} currentBoard - The board state.
+         * @returns {{row: number, col: number}|null} The king's coordinates, or null if not found.
+         */
+        function findKing(color, currentBoard) {
+            const kingPiece = color + 'K';
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    if (currentBoard[r][c] === kingPiece) {
+                        return { row: r, col: c };
+                    }
+                }
+            }
+            return null; // Should not happen in a valid game
+        }
+
+        /**
+         * Checks if the king of a given color is currently in check.
+         * This function iterates through all opponent pieces and checks if any of their valid
+         * moves (ignoring check rules for the opponent's king for simplicity of this check)
+         * attack the specified king.
+         * @param {string} kingColor - The color of the king to check ('w' or 'b').
+         * @param {Array<Array<string|null>>} currentBoard - The board state to analyze.
+         * @returns {boolean} True if the king is in check, false otherwise.
+         */
+        function isKingInCheck(kingColor, currentBoard) {
+            const kingPos = findKing(kingColor, currentBoard);
+            if (!kingPos) return false; // King not found, likely end of game
+
+            const opponentColor = (kingColor === 'w') ? 'b' : 'w';
+
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const piece = currentBoard[r][c];
+                    if (piece && getPieceColor(piece) === opponentColor) {
+                        // Calculate potential attacks from opponent's piece
+                        // IMPORTANT: For simplicity, this getValidMoves call is *not* filtered by check.
+                        // A full chess engine would have a separate "pseudo-legal" moves function
+                        // that doesn't care about the king being attacked, just piece movement rules.
+                        const opponentPseudoMoves = getValidMovesForAttack(r, c, currentBoard); // Using a simpler move calculation for attack check
+                        for (const move of opponentPseudoMoves) {
+                            if (move.row === kingPos.row && move.col === kingPos.col) {
+                                return true;
+                            }
+                            // Special check for pawn attacks (only diagonals for capture, not forward moves)
+                            if (piece[1] === 'P') {
+                                const pawnDirection = (opponentColor === 'w') ? -1 : 1;
+                                const attackMoves = [
+                                    { row: r + pawnDirection, col: c - 1 },
+                                    { row: r + pawnDirection, col: c + 1 }
+                                ];
+                                for (const attackMove of attackMoves) {
+                                    if (attackMove.row === kingPos.row && attackMove.col === kingPos.col) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Helper function to get pseudo-legal moves for attack checking (does not filter for king safety).
+         * This avoids infinite recursion when `getValidMoves` calls `isKingInCheck` which in turn calls `getValidMoves`.
+         * @param {number} row - The row of the piece.
+         * @param {number} col - The column of the piece.
+         * @param {Array<Array<string|null>>} currentBoard - The board state to analyze.
+         * @returns {Array<{row: number, col: number}>} An array of pseudo-legal move coordinates.
+         */
+        function getValidMovesForAttack(row, col, currentBoard) {
+            const piece = currentBoard[row][col];
+            if (!piece) return [];
+
+            const color = getPieceColor(piece);
+            const type = piece[1];
+
+            // Note: For pawns, getPawnMoves includes forward moves.
+            // When checking for attack, pawns only attack diagonally.
+            // This simplification is already handled in `isKingInCheck`'s special pawn check.
+            switch (type) {
+                case 'P': return getPawnMoves(row, col, color, currentBoard); // Will be filtered for attack only
+                case 'R': return getRookMoves(row, col, color, currentBoard);
+                case 'N': return getKnightMoves(row, col, color, currentBoard);
+                case 'B': return getBishopMoves(row, col, color, currentBoard);
+                case 'Q': return getQueenMoves(row, col, color, currentBoard);
+                case 'K': return getKingMoves(row, col, color, currentBoard);
+                default: return [];
+            }
+        }
+
+
+        /**
+         * Checks if the current player is in checkmate or stalemate.
+         * This function is simplified and might not cover all edge cases like insufficient material.
+         * @param {string} playerColor - The color of the current player.
+         * @param {Array<Array<string|null>>} currentBoard - The board state.
+         * @returns {string|null} 'checkmate', 'stalemate', or null if neither.
+         */
+        function checkGameEndCondition(playerColor, currentBoard) {
+            if (isKingInCheck(playerColor, currentBoard)) {
+                // If in check, check if any valid move can get out of check
+                for (let r = 0; r < boardSize; r++) {
+                    for (let c = 0; c < boardSize; c++) {
+                        const piece = currentBoard[r][c];
+                        if (piece && getPieceColor(piece) === playerColor) {
+                            const moves = getValidMoves(r, c, currentBoard);
+                            if (moves.length > 0) {
+                                return null; // Can move out of check
+                            }
+                        }
+                    }
+                }
+                return 'checkmate'; // No valid moves and in check
+            } else {
+                // Not in check, check if any valid move exists
+                for (let r = 0; r < boardSize; r++) {
+                    for (let c = 0; c < boardSize; c++) {
+                        const piece = currentBoard[r][c];
+                        if (piece && getPieceColor(piece) === playerColor) {
+                            const moves = getValidMoves(r, c, currentBoard);
+                            if (moves.length > 0) {
+                                return null; // Can make a move
+                            }
+                        }
+                    }
+                }
+                return 'stalemate'; // No valid moves and not in check
+            }
+        }
+
+        /**
+         * Handles a click event on the 3D canvas for piece selection and movement.
+         * @param {MouseEvent} event - The click event object.
+         */
+        function onDocumentMouseDown(event) {
+            if (gameOver) return;
+
+            event.preventDefault();
+
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                const clickedObject = intersects[0].object;
+
+                // Find the square mesh that was clicked, or the square under the clicked piece
+                let clickedSquareMesh = null;
+                if (clickedObject.userData.type === 'square') {
+                    clickedSquareMesh = clickedObject;
+                } else if (clickedObject.userData.type === 'piece') {
+                    // If a piece is clicked, find the square it's on
+                    const pieceMesh = clickedObject;
+                    // Need to convert piece's 3D position back to board coordinates
+                    const col = Math.round((pieceMesh.position.x + (boardSize * squareSize3D) / 2 - squareSize3D / 2) / squareSize3D);
+                    const row = Math.round((pieceMesh.position.z + (boardSize * squareSize3D) / 2 - squareSize3D / 2) / squareSize3D);
+                    clickedSquareMesh = boardSquares.find(m => m.userData.row === row && m.userData.col === col);
+                }
+
+                if (clickedSquareMesh) {
+                    const clickedRow = clickedSquareMesh.userData.row;
+                    const clickedCol = clickedSquareMesh.userData.col;
+                    const clickedPieceInBoard = board[clickedRow][clickedCol];
+
+                    // Scenario 1: No piece selected yet, or new piece selected
+                    if (!selectedPiece) {
+                        if (clickedPieceInBoard && getPieceColor(clickedPieceInBoard) === currentPlayer) {
+                            selectedPiece = { row: clickedRow, col: clickedCol, piece: clickedPieceInBoard };
+                            validMoves = getValidMoves(clickedRow, clickedCol, board);
+                        }
+                    }
+                    // Scenario 2: A piece is already selected
+                    else {
+                        // If clicked on the same selected piece, deselect it
+                        if (selectedPiece.row === clickedRow && selectedPiece.col === clickedCol) {
+                            selectedPiece = null;
+                            validMoves = [];
+                        }
+                        // If clicked on a valid move target
+                        else if (validMoves.some(move => move.row === clickedRow && move.col === clickedCol)) {
+                            makeMove(selectedPiece.row, selectedPiece.col, clickedRow, clickedCol);
+                            selectedPiece = null;
+                            validMoves = [];
+                        }
+                        // If clicked on another one of current player's pieces, select that instead
+                        else if (clickedPieceInBoard && getPieceColor(clickedPieceInBoard) === currentPlayer) {
+                            selectedPiece = { row: clickedRow, col: clickedCol, piece: clickedPieceInBoard };
+                            validMoves = getValidMoves(clickedRow, clickedCol, board);
+                        }
+                        // Otherwise, deselect the piece (invalid click)
+                        else {
+                            selectedPiece = null;
+                            validMoves = [];
+                        }
+                    }
+                    drawBoardState(); // Redraw highlights based on new state
+                }
+            }
+        }
+
+        /**
+         * Handles mouse movement for potential hover effects (not implemented but useful for future).
+         * @param {MouseEvent} event - The mouse move event object.
+         */
+        function onDocumentMouseMove(event) {
+            // Placeholder for hover logic, if any
+        }
+
+        /**
+         * Performs a move on the board (2D logic) and updates 3D piece positions.
+         * @param {number} startRow - Starting row.
+         * @param {number} startCol - Starting column.
+         * @param {number} endRow - Ending row.
+         * @param {number} endCol - Ending column.
+         */
+        function makeMove(startRow, startCol, endRow, endCol) {
+            const pieceToMove = board[startRow][startCol];
+            const capturedPiece = board[endRow][endCol];
+
+            // Save current state for undo
+            moveHistory.push({
+                boardState: JSON.parse(JSON.stringify(board)), // Deep copy of board
+                currentPlayer: currentPlayer
+            });
+
+            // Update 2D board state
+            board[endRow][endCol] = pieceToMove;
+            board[startRow][startCol] = null;
+
+            // Update 3D piece positions
+            const pieceMesh = pieceMeshes.get(`${startRow}_${startCol}`);
+            if (pieceMesh) {
+                pieceMesh.position.set(
+                    endCol * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2,
+                    pieceHeight / 2, // Ensure pieces are at the correct height relative to the board
+                    endRow * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2
+                );
+                pieceMeshes.delete(`${startRow}_${startCol}`);
+                pieceMeshes.set(`${endRow}_${endCol}`, pieceMesh);
+            }
+
+            // Remove captured piece from 3D scene
+            if (capturedPiece) {
+                const capturedMesh = pieceMeshes.get(`${endRow}_${endCol}`); // It would be replaced by the moving piece
+                if (capturedMesh && capturedMesh !== pieceMesh) { // Ensure it's not the piece that just moved
+                    scene.remove(capturedMesh);
+                    capturedMesh.geometry.dispose();
+                    capturedMesh.material.dispose();
+                }
+            }
+
+            // Handle pawn promotion (simplified: automatically promote to Queen)
+            if (pieceToMove[1] === 'P') {
+                if ((getPieceColor(pieceToMove) === 'w' && endRow === 0) ||
+                    (getPieceColor(pieceToMove) === 'b' && endRow === boardSize - 1)) {
+                    board[endRow][endCol] = getPieceColor(pieceToMove) + 'Q'; // Promote to Queen
+
+                    // Update 3D mesh for promoted pawn
+                    if (pieceMesh) {
+                        scene.remove(pieceMesh);
+                        pieceMesh.geometry.dispose();
+                        pieceMesh.material.dispose();
+                    }
+                    const newQueenMesh = createPieceMesh(board[endRow][endCol]);
+                    newQueenMesh.position.set(
+                        endCol * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2,
+                        pieceHeight / 2, // Ensure promoted piece is at correct height
+                        endRow * squareSize3D + squareSize3D / 2 - (boardSize * squareSize3D) / 2
+                    );
+                    scene.add(newQueenMesh);
+                    pieceMeshes.set(`${endRow}_${endCol}`, newQueenMesh);
+                }
+            }
+
+            // Switch turns
+            currentPlayer = (currentPlayer === 'w') ? 'b' : 'w';
+            statusMessage.textContent = `Tour des ${currentPlayer === 'w' ? 'Blancs' : 'Noirs'}`;
+
+            // Check for game end conditions after the move
+            const gameResult = checkGameEndCondition(currentPlayer, board);
+            if (gameResult === 'checkmate') {
+                gameOver = true;
+                const winner = (currentPlayer === 'w') ? 'Noirs' : 'Blancs';
+                statusMessage.textContent = `Échec et mat ! Les ${winner} gagnent !`;
+                showMessage("Échec et mat !", `Les ${winner} ont gagné la partie !`);
+            } else if (gameResult === 'stalemate') {
+                gameOver = true;
+                statusMessage.textContent = `Partie nulle - Pat !`;
+                showMessage("Partie nulle", "C'est un Pat ! La partie est nulle.");
+            } else if (isKingInCheck(currentPlayer, board)) {
+                statusMessage.textContent = `Tour des ${currentPlayer === 'w' ? 'Blancs' : 'Noirs'} - Échec !`;
+            }
+
+            drawBoardState(); // Update highlights on the 3D board
+        }
+
+        /**
+         * Undoes the last move.
+         */
+        function undoLastMove() {
+            if (moveHistory.length > 0) {
+                const lastState = moveHistory.pop();
+                board = JSON.parse(JSON.stringify(lastState.boardState)); // Restore board state
+                currentPlayer = lastState.currentPlayer; // Restore current player
+                gameOver = false; // Game is no longer over if an undo occurs
+                selectedPiece = null; // Deselect any piece
+                validMoves = []; // Clear valid moves
+                statusMessage.textContent = `Tour des ${currentPlayer === 'w' ? 'Blancs' : 'Noirs'}`;
+                update3DBoardFrom2D(); // Re-render 3D board from restored 2D state
+            } else {
+                showMessage("Impossible d'annuler", "Aucun coup à annuler.");
+            }
+        }
+
+        /**
+         * Resets the game to its initial state.
+         */
+        function resetGame() {
+            initializeBoard();
+        }
+
+        /**
+         * Handles window resize to adjust Three.js renderer size.
+         */
+        function onWindowResize() {
+            // Get current computed dimensions of the container
+            const containerWidth = threeDContainer.clientWidth;
+            const containerHeight = threeDContainer.clientHeight;
+
+            camera.aspect = containerWidth / containerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(containerWidth, containerHeight);
+            renderer.render(scene, camera); // Render immediately after resize
+        }
+
+        /**
+         * Animation loop for Three.js rendering.
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Only required if controls.enableDamping is set to true
+            renderer.render(scene, camera);
+        }
+
+        // Event Listeners
+        resetButton.addEventListener('click', resetGame);
+        undoButton.addEventListener('click', undoLastMove);
+
+        // Initialize Three.js and the game when the window loads
+        window.onload = function() {
+            initThreeD();
+            initializeBoard();
+            onWindowResize(); // Set initial size
+            animate(); // Start the animation loop
+        };
+
+    </script>
+</body>
+</html>
