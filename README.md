@@ -16,8 +16,7 @@ Projet personnel visant à expérimenter le rendu 3D dans le navigateur et la lo
 
 ## 🛠️ Stack technique
 
-- HTML / CSS / JavaScript  
-- Librairie 3D (ex : Three.js, si utilisée)
+- HTML / CSS / JavaScript
 
 ---
 
